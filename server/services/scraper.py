@@ -57,7 +57,7 @@ def scrape_with_chromium_headless(url):
             # Add human-like delay between attempts
             if attempt > 0:
                 time.sleep(retry_delay * attempt)  # Increasing delay
-            time.sleep(random.uniform(1, 3))
+            time.sleep(random.uniform(1, 2))
             
             # Enhanced anti-detection flags for CBE URLs
             base_flags = [
@@ -100,12 +100,12 @@ def scrape_with_chromium_headless(url):
                 url
             ]
         
-        print(f"Running chromium command for URL: {url}", file=sys.stderr)
+            print(f"Running chromium command for URL: {url}", file=sys.stderr)
         
-        # Add human-like delay for CBE URLs
-        if is_cbe_url:
-            print("Adding delay for more realistic CBE access...", file=sys.stderr)
-            time.sleep(2)  # 2 second delay before accessing CBE
+            # Add human-like delay for CBE URLs
+            if is_cbe_url:
+                print("Adding delay for more realistic CBE access...", file=sys.stderr)
+                time.sleep(2)  # 2 second delay before accessing CBE
         
             try:
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=40 if is_cbe_url else 30)
@@ -119,10 +119,10 @@ def scrape_with_chromium_headless(url):
                     'error': 'Request timeout'
                 }
         
-        print(f"Chromium return code: {result.returncode}", file=sys.stderr)
-        print(f"Stdout length: {len(result.stdout)} characters", file=sys.stderr)
+            print(f"Chromium return code: {result.returncode}", file=sys.stderr)
+            print(f"Stdout length: {len(result.stdout)} characters", file=sys.stderr)
         
-            if result.returncode == 0 and len(result.stdout) > 1000:  # Success with substantial content
+            if result.returncode == 0 and len(result.stdout) > 1000:
                 print(f"SUCCESS on attempt {attempt + 1}: Retrieved {len(result.stdout)} characters", file=sys.stderr)
                 soup = BeautifulSoup(result.stdout, 'html.parser')
                 extracted_data = extract_real_transaction_data(result.stdout, url)

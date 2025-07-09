@@ -82,7 +82,7 @@ npm install
 
 3. **Install Python dependencies**
 ```bash
-python -m pip install -r python-requirements.txt
+npm run install:python
 ```
 
 4. **Set up environment variables**
