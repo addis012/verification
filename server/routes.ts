@@ -123,7 +123,7 @@ async function runScrapingJob(jobId: number, url: string, method: string) {
 
     // Run Python scraper
     const scraperPath = path.join(__dirname, "services", "scraper.py");
-    const pythonProcess = spawn("python3", [scraperPath, url, method], {
+    const pythonProcess = spawn("python", [scraperPath, url, method], {
       stdio: ["pipe", "pipe", "pipe"]
     });
 
