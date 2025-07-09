@@ -4,6 +4,10 @@ import { storage } from "./storage";
 import { insertScrapingJobSchema, urlValidationSchema } from "@shared/schema";
 import { spawn } from "child_process";
 import path from "path";
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Validate URL endpoint
@@ -118,7 +122,7 @@ async function runScrapingJob(jobId: number, url: string, method: string) {
     });
 
     // Run Python scraper
-    const scraperPath = path.join(process.cwd(), "server/services/scraper.py");
+    const scraperPath = path.join(__dirname, "services", "scraper.py");
     const pythonProcess = spawn("python3", [scraperPath, url, method], {
       stdio: ["pipe", "pipe", "pipe"]
     });
