@@ -9,7 +9,7 @@ We appreciate your interest in contributing to this Ethiopian banking transactio
 ### Development Setup
 1. Fork the repository
 2. Clone your fork: `git clone https://github.com/YOUR_USERNAME/verification.git`
-3. Install dependencies: `npm install && pip install -r python-requirements.txt`
+3. Install dependencies: `npm install && python -m pip install -r python-requirements.txt`
 4. Set up environment variables: `cp .env.example .env`
 5. Start development server: `npm run dev`
 

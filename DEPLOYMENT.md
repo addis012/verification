@@ -16,7 +16,7 @@ cd verification
 
 # Install dependencies
 npm install
-pip install -r python-requirements.txt
+python -m pip install -r python-requirements.txt
 
 # Set up environment
 cp .env.example .env
@@ -188,5 +188,5 @@ grep "CBE" logs/application.log
 npm update
 
 # Update Python dependencies
-pip install -r python-requirements.txt --upgrade
+python -m pip install -r python-requirements.txt --upgrade
 ```
