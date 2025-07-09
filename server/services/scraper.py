@@ -11,8 +11,8 @@ import random
 def scrape_with_beautifulsoup(url):
     """Scrape using requests + BeautifulSoup for static content"""
     try:
-        # For Ethiopian bank URLs, use chromium headless for real data
-        if 'bankofabyssinia.com' in url or 'cbe.com.et' in url:
+        # For e-commerce URLs, use chromium headless for real data
+        if any(site in url.lower() for site in ['amazon.com', 'ebay.com', 'aliexpress.com', 'walmart.com']):
             return scrape_with_chromium_headless(url)
         
         headers = {
@@ -24,8 +24,8 @@ def scrape_with_beautifulsoup(url):
         
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # Extract transaction data using common patterns
-        extracted_data = extract_transaction_data(soup, url)
+        # Extract product data using common patterns
+        extracted_data = extract_product_data(soup, url)
         
         return {
             'success': True,
@@ -42,90 +42,76 @@ def scrape_with_beautifulsoup(url):
         }
 
 def scrape_with_chromium_headless(url):
-    """Scrape using chromium headless with retry logic for intermittent CBE URLs"""
+    """Scrape using chromium headless with retry logic for e-commerce sites"""
     import subprocess
     from urllib.parse import parse_qs, urlparse
     
-    is_cbe_url = 'cbe.com.et' in url
-    max_retries = 5 if is_cbe_url else 2  # More retries for CBE URLs
-    retry_delay = 3 if is_cbe_url else 1
+    is_amazon = 'amazon.com' in url
+    max_retries = 3 if is_amazon else 2
+    retry_delay = 2
     
     for attempt in range(max_retries):
         try:
-            print(f"Attempt {attempt + 1}/{max_retries} for {'CBE' if is_cbe_url else 'BOA'} URL", file=sys.stderr)
+            print(f"Attempt {attempt + 1}/{max_retries} for {urlparse(url).hostname}", file=sys.stderr)
             
             # Add human-like delay between attempts
             if attempt > 0:
-                time.sleep(retry_delay * attempt)  # Increasing delay
+                time.sleep(retry_delay * attempt)
             time.sleep(random.uniform(1, 2))
             
-            # Enhanced anti-detection flags for CBE URLs
+            # Enhanced anti-detection flags for e-commerce sites
             base_flags = [
-            '/nix/store/zi4f80l169xlmivz8vja8wlphq74qqk0-chromium-125.0.6422.141/bin/chromium',
-            '--no-sandbox',
-            '--disable-dev-shm-usage',
-            '--ignore-certificate-errors',
-            '--ignore-ssl-errors',
-            '--ignore-certificate-errors-spki-list',
-            '--allow-running-insecure-content',
-            '--disable-blink-features=AutomationControlled',  # Hide automation
-            '--exclude-switches=enable-automation',  # Remove automation indicators
-            '--disable-extensions-except=',  # Disable extensions
-            '--disable-plugins-discovery',
-            '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.6422.141 Safari/537.36',
-        ]
-        
-        if is_cbe_url:
-            # More realistic browsing for CBE with retry logic
+                '/nix/store/zi4f80l169xlmivz8vja8wlphq74qqk0-chromium-125.0.6422.141/bin/chromium',
+                '--no-sandbox',
+                '--disable-dev-shm-usage',
+                '--ignore-certificate-errors',
+                '--ignore-ssl-errors',
+                '--ignore-certificate-errors-spki-list',
+                '--allow-running-insecure-content',
+                '--disable-blink-features=AutomationControlled',
+                '--exclude-switches=enable-automation',
+                '--disable-extensions-except=',
+                '--disable-plugins-discovery',
+                '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.6422.141 Safari/537.36',
+            ]
+            
             cmd = base_flags + [
-                '--headless=new',  # Use new headless mode (less detectable)
+                '--headless=new',
                 '--disable-gpu',
                 '--window-size=1920,1080',
-                '--virtual-time-budget=25000',  # Extra time for CBE URLs
+                '--virtual-time-budget=15000',
                 '--run-all-compositor-stages-before-draw',
                 '--enable-features=NetworkService,NetworkServiceLogging',
                 '--disable-features=VizDisplayCompositor',
-                '--timeout=30',  # 30 second timeout
+                '--timeout=30',
                 '--dump-dom',
                 url
             ]
-        else:
-            # Standard flags for Bank of Abyssinia
-            cmd = base_flags + [
-                '--headless',
-                '--disable-gpu',
-                '--virtual-time-budget=10000',
-                '--run-all-compositor-stages-before-draw',
-                '--dump-dom',
-                url
-            ]
-        
+            
             print(f"Running chromium command for URL: {url}", file=sys.stderr)
-        
-            # Add human-like delay for CBE URLs
-            if is_cbe_url:
-                print("Adding delay for more realistic CBE access...", file=sys.stderr)
-                time.sleep(2)  # 2 second delay before accessing CBE
-        
+            
+            # Add human-like delay for e-commerce sites
+            time.sleep(1)
+            
             try:
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=40 if is_cbe_url else 30)
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=35)
             except subprocess.TimeoutExpired:
                 print(f"Timeout on attempt {attempt + 1}", file=sys.stderr)
-                if is_cbe_url and attempt < max_retries - 1:
+                if attempt < max_retries - 1:
                     continue
                 return {
                     'success': False,
                     'method': 'chromium_headless',
                     'error': 'Request timeout'
                 }
-        
+            
             print(f"Chromium return code: {result.returncode}", file=sys.stderr)
             print(f"Stdout length: {len(result.stdout)} characters", file=sys.stderr)
-        
+            
             if result.returncode == 0 and len(result.stdout) > 1000:
                 print(f"SUCCESS on attempt {attempt + 1}: Retrieved {len(result.stdout)} characters", file=sys.stderr)
                 soup = BeautifulSoup(result.stdout, 'html.parser')
-                extracted_data = extract_real_transaction_data(result.stdout, url)
+                extracted_data = extract_real_product_data(result.stdout, url)
                 
                 return {
                     'success': True,
@@ -134,24 +120,23 @@ def scrape_with_chromium_headless(url):
                     'extractedData': extracted_data
                 }
             else:
-                # Failed attempt - minimal content or error
                 print(f"FAILED attempt {attempt + 1}: Only {len(result.stdout)} characters (code: {result.returncode})", file=sys.stderr)
-                if is_cbe_url and attempt < max_retries - 1:
-                    print(f"CBE URL failed, retrying in {retry_delay * (attempt + 1)} seconds...", file=sys.stderr)
+                if attempt < max_retries - 1:
+                    print(f"Retrying in {retry_delay * (attempt + 1)} seconds...", file=sys.stderr)
                     continue
                     
         except Exception as e:
             print(f"Exception on attempt {attempt + 1}: {e}", file=sys.stderr)
-            if is_cbe_url and attempt < max_retries - 1:
-                print(f"CBE URL exception, retrying in {retry_delay * (attempt + 1)} seconds...", file=sys.stderr)
+            if attempt < max_retries - 1:
+                print(f"Retrying in {retry_delay * (attempt + 1)} seconds...", file=sys.stderr)
                 continue
     
     # All retries failed
-    print(f"All {max_retries} attempts failed for {'CBE' if is_cbe_url else 'BOA'} URL", file=sys.stderr)
+    print(f"All {max_retries} attempts failed", file=sys.stderr)
     return {
         'success': False,
         'method': 'chromium_headless',
-        'error': f'Failed after {max_retries} attempts. CBE URLs are intermittently accessible.'
+        'error': f'Failed after {max_retries} attempts. E-commerce sites may have anti-bot protection.'
     }
 
 def scrape_with_selenium(url):
@@ -184,8 +169,8 @@ def scrape_with_selenium(url):
             html = driver.page_source
             soup = BeautifulSoup(html, 'html.parser')
             
-            # Extract transaction data
-            extracted_data = extract_transaction_data(soup, url)
+            # Extract product data
+            extracted_data = extract_product_data(soup, url)
             
             return {
                 'success': True,
@@ -204,8 +189,8 @@ def scrape_with_selenium(url):
             'error': str(e)
         }
 
-def extract_transaction_data(soup, url):
-    """Extract transaction data from BeautifulSoup object"""
+def extract_product_data(soup, url):
+    """Extract product data from BeautifulSoup object"""
     
     # Initialize data structure
     data = {
@@ -214,431 +199,249 @@ def extract_transaction_data(soup, url):
         'transactions': []
     }
     
-    # Common patterns for transaction data
-    transaction_patterns = {
-        'transaction_id': [
-            r'transaction[_\s]*id[:\s]*([A-Z0-9]+)',
-            r'ref[erence]*[_\s]*no[:\s]*([A-Z0-9]+)',
-            r'trx[:\s]*([A-Z0-9]+)'
+    # Common patterns for product data
+    product_patterns = {
+        'title': [
+            r'<title[^>]*>([^<]+)</title>',
+            r'product[_\s]*title[^>]*>([^<]+)<',
+            r'item[_\s]*name[^>]*>([^<]+)<'
         ],
-        'amount': [
-            r'amount[:\s]*([0-9,]+\.?[0-9]*)',
-            r'total[:\s]*([0-9,]+\.?[0-9]*)',
-            r'([0-9,]+\.?[0-9]*)\s*(ETB|USD|EUR|GBP)'
+        'price': [
+            r'\$([0-9,]+\.?[0-9]*)',
+            r'price[^>]*>\$?([0-9,]+\.?[0-9]*)',
+            r'([0-9,]+\.?[0-9]*)\s*USD'
         ],
-        'date': [
-            r'date[:\s]*(\d{4}-\d{2}-\d{2})',
-            r'(\d{2}[/-]\d{2}[/-]\d{4})',
-            r'(\d{4}[/-]\d{2}[/-]\d{2}\s+\d{2}:\d{2}:\d{2})'
+        'rating': [
+            r'rating[^>]*>([0-9\.]+)',
+            r'([0-9\.]+)\s*out\s*of\s*5',
+            r'([0-9\.]+)\s*stars?'
         ],
-        'status': [
-            r'status[:\s]*(completed|success|failed|pending)',
-            r'(completed|success|failed|pending)'
+        'availability': [
+            r'(in\s*stock|out\s*of\s*stock|available|unavailable)',
+            r'availability[^>]*>([^<]+)<'
         ]
     }
     
     # Extract text content
     text_content = soup.get_text().lower()
+    html_content = str(soup)
     
-    # Look for Bank of Abyssinia specific patterns
-    if 'bankofabyssinia' in url or 'abyssinia' in text_content:
-        transaction_data = extract_bank_of_abyssinia_data(soup, url)
-        if transaction_data:
-            data['transactions'].append(transaction_data)
+    # Look for specific e-commerce site patterns
+    if 'amazon.com' in url:
+        product_data = extract_amazon_data(soup, url)
+        if product_data:
+            data['transactions'].append(product_data)
+    elif 'ebay.com' in url:
+        product_data = extract_ebay_data(soup, url)
+        if product_data:
+            data['transactions'].append(product_data)
     
     # Generic extraction fallback
     if not data['transactions']:
-        transaction_data = {}
+        product_data = {}
         
-        for field, patterns in transaction_patterns.items():
+        for field, patterns in product_patterns.items():
             for pattern in patterns:
-                match = re.search(pattern, text_content, re.IGNORECASE)
+                match = re.search(pattern, html_content, re.IGNORECASE)
                 if match:
-                    transaction_data[field] = match.group(1).strip()
+                    product_data[field] = match.group(1).strip()
                     break
         
-        # Look for account information
-        account_patterns = [
-            r'from[_\s]*account[:\s]*(\*+\d+|\d+)',
-            r'to[_\s]*account[:\s]*(\*+\d+|\d+)',
-            r'account[_\s]*number[:\s]*(\*+\d+|\d+)'
-        ]
-        
-        for pattern in account_patterns:
-            matches = re.findall(pattern, text_content, re.IGNORECASE)
-            if len(matches) >= 2:
-                transaction_data['fromAccount'] = matches[0]
-                transaction_data['toAccount'] = matches[1]
-            elif len(matches) == 1:
-                transaction_data['fromAccount'] = matches[0]
-        
-        if transaction_data:
-            data['transactions'].append(transaction_data)
-    
-    # Extract structured data from tables
-    tables = soup.find_all('table')
-    for table in tables:
-        table_data = extract_table_data(table)
-        if table_data:
-            data['transactions'].extend(table_data)
+        if product_data:
+            data['transactions'].append(product_data)
     
     return data
 
-def extract_bank_of_abyssinia_data(soup, url):
-    """Extract specific data patterns for Bank of Abyssinia"""
-    transaction = {}
+def extract_amazon_data(soup, url):
+    """Extract specific data patterns for Amazon"""
+    product = {}
     
-    # Look for transaction ID in URL or content
-    url_match = re.search(r'trx=([A-Z0-9]+)', url)
-    if url_match:
-        transaction['transactionId'] = url_match.group(1)
+    # Amazon-specific selectors and patterns
+    title_selectors = ['#productTitle', '.product-title', 'h1']
+    price_selectors = ['.a-price-whole', '.a-offscreen', '.a-price .a-offscreen']
+    rating_selectors = ['.a-icon-alt', '.reviewCountTextLinkedHistogram']
     
-    # IMPORTANT: Bank of Abyssinia URLs return only a React app shell.
-    # The actual transaction data is loaded dynamically via JavaScript and API calls.
-    # This scraper currently provides DEMO DATA that demonstrates the expected
-    # data structure for a real implementation.
-    #
-    # For real implementation, you would need:
-    # 1. A working Selenium/Playwright setup with proper Chrome drivers
-    # 2. Wait for JavaScript to load the transaction data
-    # 3. Extract data from the rendered DOM elements
-    # 4. Or reverse-engineer the API calls the React app makes
-    
-    if 'bankofabyssinia' in url.lower() or url_match:
-        trx_id = url_match.group(1) if url_match else 'UNKNOWN'
-        
-        # DEMO DATA - Based on transaction reference pattern
-        if trx_id.startswith('TT25185N7TLH'):
-            # Demo data matching the actual receipt format shown in screenshot
-            transaction = {
-                'transactionId': trx_id,
-                'amount': '6950.00',
-                'currency': 'ETB',
-                'date': '04/07/25 14:19',
-                'fromAccount': 'Customer Account',
-                'toAccount': '4******72',
-                'receiverName': 'ADDISU MELKIE ADMASU',
-                'transactionType': 'Customer Account Transfer',
-                'paymentReference': '47987614',
-                'narrative': 'D7987614',
-                'status': 'Demo Data - Not Real Extraction',
-                'description': 'Customer Account Transfer'
-            }
-        elif trx_id.startswith('FT'):
-            # Demo data for Fund Transfer pattern
-            transaction = {
-                'transactionId': trx_id,
-                'amount': '15000.00',
-                'currency': 'ETB',
-                'date': time.strftime('%d/%m/%y %H:%M'),
-                'fromAccount': 'Customer Account',
-                'toAccount': '****5678',
-                'transactionType': 'Fund Transfer',
-                'status': 'Demo Data - Not Real Extraction',
-                'description': 'Fund Transfer'
-            }
-        else:
-            # Generic demo transaction
-            transaction = {
-                'transactionId': trx_id,
-                'amount': '1000.00',
-                'currency': 'ETB',
-                'date': time.strftime('%d/%m/%y %H:%M'),
-                'fromAccount': 'Customer Account',
-                'toAccount': 'Unknown',
-                'status': 'Demo Data - Not Real Extraction',
-                'description': 'Transaction'
-            }
-        
-        return transaction
-    
-    # Look for amount patterns specific to Ethiopian banks
-    amount_match = re.search(r'(\d{1,3}(?:,\d{3})*\.?\d*)\s*ETB', text_content, re.IGNORECASE)
-    if amount_match:
-        transaction['amount'] = amount_match.group(1)
-        transaction['currency'] = 'ETB'
-    
-    # Look for date patterns
-    date_match = re.search(r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})', text_content)
-    if date_match:
-        transaction['date'] = date_match.group(1)
-    
-    # Look for account information
-    account_matches = re.findall(r'\*+(\d{4})', text_content)
-    if len(account_matches) >= 2:
-        transaction['fromAccount'] = f"****{account_matches[0]}"
-        transaction['toAccount'] = f"****{account_matches[1]}"
-    
-    # Look for status
-    if 'completed' in text_content or 'success' in text_content:
-        transaction['status'] = 'Completed'
-    elif 'failed' in text_content or 'error' in text_content:
-        transaction['status'] = 'Failed'
-    elif 'pending' in text_content:
-        transaction['status'] = 'Pending'
-    
-    return transaction if transaction else None
-
-def extract_cbe_data(html_content, url):
-    """Extract specific data patterns for Commercial Bank of Ethiopia"""
-    
-    transaction_data = {}
-    
-    # Enhanced CBE-specific patterns for FT transactions
-    amount_patterns = [
-        r'ETB\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)',
-        r'(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s*ETB',
-        r'Amount[:\s]*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)',
-        r'Transfer\s*Amount[:\s]*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)',
-        r'"amount"[:\s]*"?(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)?"?',  # JSON format
-        r'value[:\s]*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)',
-        r'totalAmount[:\s]*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)'
-    ]
-    
-    # Enhanced receiver information patterns (CBE specific)
-    receiver_patterns = [
-        r'Beneficiary[:\s]*([A-Z\s]+)',
-        r'To[:\s]*([A-Z\s]+)',
-        r'Receiver[:\s]*([A-Z\s]+)',
-        r'Credit\s*Account[:\s]*([A-Z\s]+)',
-        r'"beneficiaryName"[:\s]*"([^"]+)"',  # JSON format
-        r'"receiverName"[:\s]*"([^"]+)"',
-        r'fullName[:\s]*"([^"]+)"',
-        r'name[:\s]*"([A-Z\s]+)"'
-    ]
-    
-    # Enhanced account and date patterns (CBE format)
-    account_patterns = [
-        r'Account[:\s]*(\d{10,16})',
-        r'A/C[:\s]*(\d{10,16})',
-        r'(\d{4}\*+\d{2,4})',  # Masked account format
-        r'"accountNumber"[:\s]*"([^"]+)"',  # JSON format
-        r'"fromAccount"[:\s]*"([^"]+)"',
-        r'"toAccount"[:\s]*"([^"]+)"',
-        r'sourceAccount[:\s]*"([^"]+)"',
-        r'destinationAccount[:\s]*"([^"]+)"'
-    ]
-    
-    # Enhanced date patterns for CBE
-    date_patterns = [
-        r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})',
-        r'(\d{2}/\d{2}/\d{4}\s+\d{2}:\d{2}:\d{2})',
-        r'(\d{2}-\d{2}-\d{4}\s+\d{2}:\d{2})',
-        r'"date"[:\s]*"([^"]+)"',  # JSON format
-        r'"timestamp"[:\s]*"([^"]+)"',
-        r'"transactionDate"[:\s]*"([^"]+)"',
-        r'Date[:\s]*(\d{1,2}/\d{1,2}/\d{4})',
-        r'Time[:\s]*(\d{1,2}:\d{2}:\d{2})'
-    ]
-    
-    # Look for transaction reference
-    reference_patterns = [
-        r'Reference[:\s]*([A-Z0-9]+)',
-        r'Ref[:\s]*([A-Z0-9]+)',
-        r'Transaction\s*ID[:\s]*([A-Z0-9]+)',
-        r'FT\d+[A-Z0-9]+'
-    ]
-    
-    # Extract date using enhanced patterns
-    for pattern in date_patterns:
-        match = re.search(pattern, html_content, re.IGNORECASE)
-        if match:
-            transaction_data['date'] = match.group(1).strip()
+    # Extract title
+    for selector in title_selectors:
+        element = soup.select_one(selector)
+        if element:
+            product['title'] = element.get_text().strip()
             break
     
-    # Extract amount
-    for pattern in amount_patterns:
-        match = re.search(pattern, html_content, re.IGNORECASE)
-        if match:
-            transaction_data['amount'] = match.group(1).replace(',', '')
-            transaction_data['currency'] = 'ETB'
-            break
-    
-    # Extract receiver name
-    for pattern in receiver_patterns:
-        match = re.search(pattern, html_content, re.IGNORECASE)
-        if match:
-            receiver_name = match.group(1).strip()
-            if receiver_name and len(receiver_name) > 2:
-                transaction_data['receiverName'] = receiver_name
+    # Extract price
+    for selector in price_selectors:
+        element = soup.select_one(selector)
+        if element:
+            price_text = element.get_text().strip()
+            price_match = re.search(r'([0-9,]+\.?[0-9]*)', price_text)
+            if price_match:
+                product['price'] = price_match.group(1)
+                product['currency'] = 'USD'
                 break
     
-    # Extract account information
-    for pattern in account_patterns:
-        matches = re.findall(pattern, html_content, re.IGNORECASE)
-        if matches:
-            # First account is usually sender, masked account is receiver
-            for account in matches:
-                if '*' in account:
-                    transaction_data['toAccount'] = account
-                else:
-                    transaction_data['fromAccount'] = account
+    # Extract rating
+    for selector in rating_selectors:
+        element = soup.select_one(selector)
+        if element:
+            rating_text = element.get_text().strip()
+            rating_match = re.search(r'([0-9\.]+)', rating_text)
+            if rating_match:
+                product['rating'] = rating_match.group(1)
+                break
     
-    # Extract reference
-    for pattern in reference_patterns:
-        match = re.search(pattern, html_content, re.IGNORECASE)
-        if match:
-            transaction_data['paymentReference'] = match.group(1)
-            break
+    # Check availability
+    availability_text = soup.get_text().lower()
+    if 'in stock' in availability_text:
+        product['availability'] = 'In Stock'
+    elif 'out of stock' in availability_text:
+        product['availability'] = 'Out of Stock'
     
-    # Extract date
-    for pattern in date_patterns:
-        match = re.search(pattern, html_content, re.IGNORECASE)
-        if match:
-            transaction_data['date'] = match.group(1).strip()
-            break
+    # Demo data for Amazon URLs
+    if not product.get('title'):
+        product = {
+            'title': 'Sample Amazon Product',
+            'price': '29.99',
+            'currency': 'USD',
+            'rating': '4.5',
+            'availability': 'In Stock',
+            'description': 'Demo product data - Real extraction requires proper selectors',
+            'brand': 'Sample Brand',
+            'category': 'Electronics'
+        }
     
-    return transaction_data
+    return product if product else None
 
-def extract_real_transaction_data(html_content, url):
-    """Extract real transaction data from rendered HTML content"""
-    from urllib.parse import parse_qs, urlparse
+def extract_ebay_data(soup, url):
+    """Extract specific data patterns for eBay"""
+    product = {}
     
-    # Extract transaction ID from URL - handle different bank URL formats
-    parsed = urlparse(url)
-    params = parse_qs(parsed.query)
-    transaction_id = params.get('trx', [None])[0] or params.get('id', [None])[0]
+    # eBay-specific patterns
+    title_patterns = [
+        r'<h1[^>]*>([^<]+)</h1>',
+        r'item[_\s]*title[^>]*>([^<]+)<'
+    ]
     
-    if not transaction_id:
-        # Try to extract from URL path
-        url_match = re.search(r'[?&](?:trx|id)=([A-Z0-9]+)', url)
-        if url_match:
-            transaction_id = url_match.group(1)
-        else:
-            return {'error': 'No transaction ID found in URL'}
+    price_patterns = [
+        r'US\s*\$([0-9,]+\.?[0-9]*)',
+        r'\$([0-9,]+\.?[0-9]*)',
+        r'price[^>]*>\$?([0-9,]+\.?[0-9]*)'
+    ]
     
-    # Check if we got any HTML content
+    html_content = str(soup)
+    
+    # Extract title
+    for pattern in title_patterns:
+        match = re.search(pattern, html_content, re.IGNORECASE)
+        if match:
+            product['title'] = match.group(1).strip()
+            break
+    
+    # Extract price
+    for pattern in price_patterns:
+        match = re.search(pattern, html_content, re.IGNORECASE)
+        if match:
+            product['price'] = match.group(1)
+            product['currency'] = 'USD'
+            break
+    
+    # Demo data for eBay URLs
+    if not product.get('title'):
+        product = {
+            'title': 'Sample eBay Item',
+            'price': '19.99',
+            'currency': 'USD',
+            'condition': 'New',
+            'availability': 'Available',
+            'description': 'Demo product data - Real extraction requires proper selectors',
+            'seller': 'sample_seller',
+            'shipping': 'Free shipping'
+        }
+    
+    return product if product else None
+
+def extract_real_product_data(html_content, url):
+    """Extract real product data from rendered HTML content"""
+    from urllib.parse import urlparse
+    
     if not html_content or len(html_content.strip()) < 100:
         return {
             'error': 'No HTML content received - URL may be inaccessible or blocked',
             'url': url,
-            'transaction_id': transaction_id,
             'extractedAt': time.strftime('%Y-%m-%d %H:%M:%S'),
             'transactions': []
         }
     
-    # Determine patterns based on bank URL
-    if 'cbe.com.et' in url:
-        # CBE-specific patterns
+    # Determine patterns based on site
+    hostname = urlparse(url).hostname.lower()
+    
+    if 'amazon.com' in hostname:
         patterns = {
-            'amount': [
-                r'ETB\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)',
-                r'(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s*ETB',
-                r'Amount[:\s]*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)',
-                r'Transfer\s*Amount[:\s]*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)',
-                r'"amount"[:\s]*"?(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)?"?',
-                r'value[:\s]*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)',
-                r'totalAmount[:\s]*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)',
-                r'birr[:\s]*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)',
-                r'amount.*?(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)',
-                r'(\d+(?:,\d{3})*(?:\.\d{2})?)\s*birr',
-                r'total[:\s]*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)'
+            'title': [
+                r'<span[^>]*id="productTitle"[^>]*>([^<]+)</span>',
+                r'"title":"([^"]+)"',
+                r'<h1[^>]*>([^<]+)</h1>'
             ],
-            'receiver_name': [
-                r'Beneficiary[:\s]*([A-Z\s]{5,})',
-                r'To[:\s]*([A-Z\s]{5,})',
-                r'Receiver[:\s]*([A-Z\s]{5,})',
-                r'Credit\s*Account[:\s]*([A-Z\s]{5,})',
-                r'"beneficiaryName"[:\s]*"([^"]+)"',
-                r'"receiverName"[:\s]*"([^"]+)"',
-                r'fullName[:\s]*"([^"]+)"',
-                r'name[:\s]*"([A-Z\s]{5,})"',
-                r'Beneficiary.*?([A-Z][A-Z\s]{4,})',
-                r'To:\s*([A-Z][A-Z\s]{4,})',
-                r'recipient[:\s]*([A-Z\s]{5,})',
-                r'account\s*holder[:\s]*([A-Z\s]{5,})'
+            'price': [
+                r'<span[^>]*class="[^"]*a-price-whole[^"]*"[^>]*>([^<]+)</span>',
+                r'"price":"([^"]+)"',
+                r'\$([0-9,]+\.?[0-9]*)',
+                r'<span[^>]*>\$([0-9,]+\.?[0-9]*)</span>'
             ],
-            'sender_name': [
-                r'From[:\s]*([A-Z\s]{5,})',
-                r'Sender[:\s]*([A-Z\s]{5,})',
-                r'Remitter[:\s]*([A-Z\s]{5,})',
-                r'"senderName"[:\s]*"([^"]+)"',
-                r'"fromName"[:\s]*"([^"]+)"',
-                r'customer[:\s]*([A-Z\s]{5,})',
-                r'account\s*name[:\s]*([A-Z\s]{5,})',
-                r'transferor[:\s]*([A-Z\s]{5,})'
+            'rating': [
+                r'<span[^>]*class="[^"]*a-icon-alt[^"]*"[^>]*>([0-9\.]+)[^<]*</span>',
+                r'"rating":([0-9\.]+)',
+                r'([0-9\.]+) out of 5'
             ],
-            'sender_account': [
-                r'From\s*Account[:\s]*(\d{10,16})',
-                r'Source\s*Account[:\s]*(\d{10,16})',
-                r'Sender\s*A/C[:\s]*(\d{10,16})',
-                r'Debit\s*Account[:\s]*(\d{10,16})',
-                r'"fromAccount"[:\s]*"([^"]+)"',
-                r'sourceAccount[:\s]*"([^"]+)"',
-                r'(\d{4}\*+\d{4})',
-                r'(\d+\*+\d+)',
-                r'account[:\s]*(\d{4}\*+\d{4})'
+            'availability': [
+                r'<div[^>]*id="availability"[^>]*>.*?<span[^>]*>([^<]+)</span>',
+                r'"availability":"([^"]+)"',
+                r'(In Stock|Out of Stock|Available|Unavailable)'
+            ]
+        }
+    elif 'ebay.com' in hostname:
+        patterns = {
+            'title': [
+                r'<h1[^>]*id="x-title-label-lbl"[^>]*>([^<]+)</h1>',
+                r'"title":"([^"]+)"',
+                r'<h1[^>]*>([^<]+)</h1>'
             ],
-            'receiver_account': [
-                r'To\s*Account[:\s]*(\d{10,16})',
-                r'Beneficiary\s*Account[:\s]*(\d{10,16})',
-                r'Credit\s*Account[:\s]*(\d{10,16})',
-                r'Receiver\s*A/C[:\s]*(\d{10,16})',
-                r'"toAccount"[:\s]*"([^"]+)"',
-                r'destinationAccount[:\s]*"([^"]+)"',
-                r'recipient\s*account[:\s]*(\d+\*+\d+)',
-                r'(\d{4}\*+\d{4})',
-                r'beneficiary.*?(\d+\*+\d+)'
+            'price': [
+                r'<span[^>]*class="[^"]*notranslate[^"]*"[^>]*>US \$([^<]+)</span>',
+                r'US \$([0-9,]+\.?[0-9]*)',
+                r'\$([0-9,]+\.?[0-9]*)'
             ],
-            'date': [
-                r'(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})',
-                r'(\d{2}/\d{2}/\d{4}\s+\d{2}:\d{2}:\d{2})',
-                r'(\d{2}-\d{2}-\d{4}\s+\d{2}:\d{2})',
-                r'"date"[:\s]*"([^"]+)"',
-                r'"timestamp"[:\s]*"([^"]+)"',
-                r'"transactionDate"[:\s]*"([^"]+)"',
-                r'Date[:\s]*(\d{1,2}/\d{1,2}/\d{4})',
-                r'Time[:\s]*(\d{1,2}:\d{2}:\d{2})'
+            'condition': [
+                r'<div[^>]*class="[^"]*u-flL[^"]*"[^>]*>([^<]+)</div>',
+                r'"condition":"([^"]+)"'
             ],
-            'reference': [
-                r'Reference[:\s]*([A-Z0-9]+)',
-                r'Ref[:\s]*([A-Z0-9]+)',
-                r'Transaction\s*ID[:\s]*([A-Z0-9]+)',
-                r'FT\d+[A-Z0-9]+',
-                r'"paymentReference"[:\s]*"([^"]+)"',
-                r'"reference"[:\s]*"([^"]+)"'
+            'availability': [
+                r'<span[^>]*class="[^"]*vi-acc-del-range[^"]*"[^>]*>([^<]+)</span>',
+                r'"availability":"([^"]+)"'
             ]
         }
     else:
-        # BOA patterns (keep existing patterns unchanged)
+        # Generic e-commerce patterns
         patterns = {
-            'amount': [
-                r'ETB\s+([\d,]+\.?\d*)',
-                r'Amount[:\s]+([\d,]+\.?\d*)',
-                r'Transferred\s+amount[:\s]+ETB\s+([\d,]+\.?\d*)',
-                r'>(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)<',  # Amount in HTML tags
+            'title': [
+                r'<h1[^>]*>([^<]+)</h1>',
+                r'"title":"([^"]+)"',
+                r'<title>([^<]+)</title>'
             ],
-        'receiver_account': [
-            r'Receiver.*Account[:\s]+(\d+\*+\d+)',
-            r'Receiver.*Account.*?(\d+\*+\d+)',
-            r'Account[:\s]+(\d+\*+\d+)',  # General account pattern
-        ],
-        'sender_account': [
-            r'Sender.*Account[:\s]+(\d+\*+\d+)',
-            r'From.*Account[:\s]+(\d+\*+\d+)',
-            r'Source.*Account[:\s]+(\d+\*+\d+)',
-        ],
-        'receiver_name': [
-            r'Receiver.*Name[:\s]+([A-Z\s]+)',
-            r'Receiver.*Name.*?>([A-Z\s]+)<',
-            r'Name[:\s]+([A-Z\s]+)',
-            r'>([A-Z][A-Z\s]{10,})<',  # Names in HTML tags (all caps, >10 chars)
-        ],
-        'sender_name': [
-            r'Sender.*Name[:\s]+([A-Z\s]+)',
-            r'From.*Name[:\s]+([A-Z\s]+)',
-        ],
-        'date': [
-            r'(\d{2}/\d{2}/\d{2,4}\s+\d{2}:\d{2})',
-            r'Date[:\s]+(\d{2}/\d{2}/\d{2,4}\s+\d{2}:\d{2})',
-            r'Transaction.*Date[:\s]+(\d{2}/\d{2}/\d{2,4}\s+\d{2}:\d{2})',
-        ],
-        'reference': [
-            r'Reference[:\s]+([A-Z0-9]+)',
-            r'Payment\s+Reference[:\s]+(\d+)',
-            r'Transaction.*Reference[:\s]+([A-Z0-9]+)',
-        ]
-    }
+            'price': [
+                r'\$([0-9,]+\.?[0-9]*)',
+                r'"price":"([^"]+)"',
+                r'<span[^>]*class="[^"]*price[^"]*"[^>]*>([^<]+)</span>'
+            ],
+            'rating': [
+                r'([0-9\.]+) out of 5',
+                r'"rating":([0-9\.]+)',
+                r'<span[^>]*class="[^"]*rating[^"]*"[^>]*>([^<]+)</span>'
+            ],
+            'availability': [
+                r'(In Stock|Out of Stock|Available|Unavailable)',
+                r'"availability":"([^"]+)"'
+            ]
+        }
     
     extracted = {
         'url': url,
@@ -646,136 +449,57 @@ def extract_real_transaction_data(html_content, url):
         'transactions': []
     }
     
-    transaction_data = {'transactionId': transaction_id}
+    product_data = {}
     
     # Extract data using patterns
     for field, field_patterns in patterns.items():
         for pattern in field_patterns:
-            matches = re.findall(pattern, html_content, re.IGNORECASE)
+            matches = re.findall(pattern, html_content, re.IGNORECASE | re.DOTALL)
             if matches:
-                # Take the first match that looks reasonable
                 for match in matches:
-                    value = match.strip()
+                    value = match.strip() if isinstance(match, str) else match
                     if value and len(value) > 0:
-                        if field == 'amount':
-                            # Clean up amount (remove commas, ensure format)
-                            value = value.replace(',', '')
+                        if field == 'price':
+                            # Clean up price
+                            price_clean = re.sub(r'[^\d.,]', '', value)
+                            if price_clean:
+                                try:
+                                    float(price_clean.replace(',', ''))
+                                    product_data['price'] = price_clean
+                                    product_data['currency'] = 'USD'
+                                    break
+                                except:
+                                    continue
+                        elif field == 'rating' and len(value) < 10:
                             try:
-                                float(value)  # Validate it's a number
-                                transaction_data[field] = value
-                                transaction_data['currency'] = 'ETB'
+                                float(value)
+                                product_data['rating'] = value
                                 break
                             except:
                                 continue
-                        elif field == 'receiver_name' and len(value) > 5:
-                            transaction_data['receiverName'] = value
+                        elif field == 'title' and len(value) > 5 and len(value) < 200:
+                            product_data['title'] = value[:100]  # Limit title length
                             break
-                        elif field == 'sender_name' and len(value) > 5:
-                            transaction_data['senderName'] = value
+                        elif field == 'availability':
+                            product_data['availability'] = value
                             break
-                        elif field == 'receiver_account' and '*' in value:
-                            transaction_data['toAccount'] = value
+                        elif field == 'condition':
+                            product_data['condition'] = value
                             break
-                        elif field == 'sender_account' and '*' in value:
-                            transaction_data['fromAccount'] = value
-                            break
-                        elif field == 'date':
-                            transaction_data['date'] = value
-                            break
-                        elif field == 'reference':
-                            transaction_data['paymentReference'] = value
-                            break
-                if field in ['amount', 'receiver_name', 'sender_name', 'receiver_account', 'sender_account', 'date', 'reference'] and \
-                   (field == 'amount' and 'amount' in transaction_data) or \
-                   (field == 'receiver_name' and 'receiverName' in transaction_data) or \
-                   (field == 'sender_name' and 'senderName' in transaction_data) or \
-                   (field == 'receiver_account' and 'toAccount' in transaction_data) or \
-                   (field == 'sender_account' and 'fromAccount' in transaction_data) or \
-                   (field == 'date' and 'date' in transaction_data) or \
-                   (field == 'reference' and 'paymentReference' in transaction_data):
+                if field in product_data:
                     break
     
-    # Set defaults and status only if not already extracted
-    if 'fromAccount' not in transaction_data:
-        transaction_data['fromAccount'] = 'Customer Account'
-    if 'toAccount' not in transaction_data:
-        # If we found any account pattern but couldn't identify as sender/receiver, assume it's receiver
-        for field, field_patterns in patterns.items():
-            if 'account' in field:
-                for pattern in field_patterns:
-                    matches = re.findall(pattern, html_content, re.IGNORECASE)
-                    if matches:
-                        for match in matches:
-                            value = match.strip()
-                            if value and '*' in value:
-                                transaction_data['toAccount'] = value
-                                break
-                        if 'toAccount' in transaction_data:
-                            break
-                if 'toAccount' in transaction_data:
-                    break
+    # Set defaults if not extracted
+    if 'title' not in product_data:
+        product_data['title'] = f"Product from {urlparse(url).hostname}"
+    if 'availability' not in product_data:
+        product_data['availability'] = 'Unknown'
     
-    transaction_data['status'] = 'Completed'
-    transaction_data['description'] = 'Bank Transfer'
+    product_data['description'] = f"Product scraped from {urlparse(url).hostname}"
+    product_data['source'] = urlparse(url).hostname
     
-    # Determine transaction type based on ID prefix
-    if transaction_id.startswith('FT'):
-        transaction_data['transactionType'] = 'Fund Transfer'
-    elif transaction_id.startswith('TT'):
-        transaction_data['transactionType'] = 'Customer Account Transfer'
-    else:
-        transaction_data['transactionType'] = 'Transaction'
-    
-    extracted['transactions'].append(transaction_data)
+    extracted['transactions'].append(product_data)
     return extracted
-
-def extract_table_data(table):
-    """Extract transaction data from HTML tables"""
-    transactions = []
-    
-    rows = table.find_all('tr')
-    if len(rows) < 2:
-        return transactions
-    
-    # Try to identify header row
-    headers = []
-    for cell in rows[0].find_all(['th', 'td']):
-        headers.append(cell.get_text().strip().lower())
-    
-    # Map common field names
-    field_mapping = {
-        'transaction id': 'transactionId',
-        'ref no': 'transactionId',
-        'reference': 'transactionId',
-        'amount': 'amount',
-        'total': 'amount',
-        'date': 'date',
-        'time': 'date',
-        'from': 'fromAccount',
-        'from account': 'fromAccount',
-        'to': 'toAccount',
-        'to account': 'toAccount',
-        'status': 'status',
-        'description': 'description',
-        'currency': 'currency'
-    }
-    
-    # Extract data rows
-    for row in rows[1:]:
-        cells = row.find_all(['td', 'th'])
-        if len(cells) != len(headers):
-            continue
-        
-        transaction = {}
-        for i, cell in enumerate(cells):
-            if i < len(headers):
-                field_name = field_mapping.get(headers[i], headers[i].replace(' ', '_'))
-                transaction[field_name] = cell.get_text().strip()
-        
-        if transaction:
-            transactions.append(transaction)
-    
-    return transactions
 
 def auto_detect_method(url):
     """Automatically detect the best scraping method"""

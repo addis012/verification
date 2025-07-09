@@ -5,7 +5,20 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { TableIcon, FileCode, FileText, CheckCircle, Database, AlertCircle, Clock } from "lucide-react";
+import { 
+  TableIcon, 
+  FileCode, 
+  FileText, 
+  CheckCircle, 
+  Database, 
+  AlertCircle, 
+  Clock,
+  DollarSign,
+  TrendingDown,
+  TrendingUp,
+  Star,
+  Package
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface ResultsTableProps {
@@ -34,7 +47,7 @@ export function ResultsTable({ jobId }: ResultsTableProps) {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `transactions-${jobId}.${format}`;
+        a.download = `price-data-${jobId}.${format}`;
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
@@ -42,13 +55,13 @@ export function ResultsTable({ jobId }: ResultsTableProps) {
         
         toast({
           title: "Export Successful",
-          description: `Transactions exported as ${format.toUpperCase()}`,
+          description: `Price data exported as ${format.toUpperCase()}`,
         });
       }
     } catch (error) {
       toast({
         title: "Export Failed",
-        description: "Failed to export transactions",
+        description: "Failed to export price data",
         variant: "destructive",
       });
     }
@@ -82,25 +95,25 @@ export function ResultsTable({ jobId }: ResultsTableProps) {
 
   const getTypeColor = (type: string) => {
     switch (type) {
-      case "String":
-        return "bg-blue-100 text-blue-800";
-      case "Currency":
+      case "Price":
         return "bg-green-100 text-green-800";
-      case "DateTime":
+      case "Product":
+        return "bg-blue-100 text-blue-800";
+      case "Rating":
+        return "bg-yellow-100 text-yellow-800";
+      case "Availability":
         return "bg-purple-100 text-purple-800";
-      case "Status":
-        return "bg-orange-100 text-orange-800";
       default:
         return "bg-slate-100 text-slate-800";
     }
   };
 
-  const renderTransactionData = (transactions: any[]) => {
+  const renderProductData = (transactions: any[]) => {
     if (!transactions || transactions.length === 0) {
       return (
         <TableRow>
           <TableCell colSpan={3} className="text-center py-8 text-slate-500">
-            No transaction data found
+            No product data found
           </TableCell>
         </TableRow>
       );
@@ -108,34 +121,56 @@ export function ResultsTable({ jobId }: ResultsTableProps) {
 
     const flattenedData: Array<{ field: string; value: string; type: string }> = [];
     
-    transactions.forEach((transaction, index) => {
-      Object.entries(transaction).forEach(([key, value]) => {
+    transactions.forEach((product, index) => {
+      Object.entries(product).forEach(([key, value]) => {
         if (key === 'id' || key === 'jobId' || key === 'extractedAt') return;
         
-        let type = "String";
-        if (key === 'amount') type = "Currency";
-        else if (key === 'date') type = "DateTime";
-        else if (key === 'status') type = "Status";
+        let type = "Product";
+        let displayValue = String(value || '');
+        
+        if (key === 'price' || key === 'amount') {
+          type = "Price";
+          displayValue = `$${displayValue}`;
+        } else if (key === 'rating') {
+          type = "Rating";
+          displayValue = `${displayValue}/5 ⭐`;
+        } else if (key === 'availability' || key === 'stock') {
+          type = "Availability";
+        }
 
         flattenedData.push({
           field: key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()),
-          value: String(value || ''),
+          value: displayValue,
           type
         });
       });
     });
 
     return flattenedData.map((item, index) => (
-      <TableRow key={index}>
-        <TableCell className="font-medium text-slate-900">{item.field}</TableCell>
+      <TableRow key={index} className="hover:bg-slate-50">
+        <TableCell className="font-medium text-slate-900">
+          <div className="flex items-center space-x-2">
+            {item.type === "Price" && <DollarSign className="h-4 w-4 text-green-600" />}
+            {item.type === "Rating" && <Star className="h-4 w-4 text-yellow-600" />}
+            {item.type === "Availability" && <Package className="h-4 w-4 text-purple-600" />}
+            {item.type === "Product" && <Package className="h-4 w-4 text-blue-600" />}
+            <span>{item.field}</span>
+          </div>
+        </TableCell>
         <TableCell className="text-slate-700 font-mono">
-          {item.type === "Status" ? (
-            <Badge variant="secondary" className="bg-green-100 text-green-800">
+          {item.type === "Availability" ? (
+            <Badge variant="secondary" className={
+              item.value.toLowerCase().includes('stock') || item.value.toLowerCase().includes('available')
+                ? "bg-green-100 text-green-800"
+                : "bg-red-100 text-red-800"
+            }>
               <CheckCircle className="h-3 w-3 mr-1" />
               {item.value}
             </Badge>
           ) : (
-            item.value
+            <span className={item.type === "Price" ? "text-green-700 font-semibold" : ""}>
+              {item.value}
+            </span>
           )}
         </TableCell>
         <TableCell>
@@ -148,12 +183,12 @@ export function ResultsTable({ jobId }: ResultsTableProps) {
   };
 
   return (
-    <Card>
+    <Card className="shadow-lg border-0 bg-white/70 backdrop-blur-sm">
       <CardContent className="p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-3">
             <TableIcon className="text-blue-600" />
-            <h2 className="text-lg font-semibold text-slate-900">Scraped Data</h2>
+            <h2 className="text-lg font-semibold text-slate-900">Product Data</h2>
           </div>
           <div className="flex items-center space-x-2">
             <Button
@@ -161,6 +196,7 @@ export function ResultsTable({ jobId }: ResultsTableProps) {
               size="sm"
               onClick={() => handleExport("json")}
               disabled={!jobData?.transactions?.length}
+              className="border-slate-300 hover:bg-slate-50"
             >
               <FileCode className="h-4 w-4 mr-1" />
               JSON
@@ -170,6 +206,7 @@ export function ResultsTable({ jobId }: ResultsTableProps) {
               size="sm"
               onClick={() => handleExport("csv")}
               disabled={!jobData?.transactions?.length}
+              className="border-slate-300 hover:bg-slate-50"
             >
               <FileText className="h-4 w-4 mr-1" />
               CSV
@@ -190,10 +227,10 @@ export function ResultsTable({ jobId }: ResultsTableProps) {
               <div className="flex items-center space-x-2">
                 {getStatusIcon(jobData.status)}
                 <span className="font-medium">
-                  {jobData.status === "completed" && "Scraping completed successfully"}
-                  {jobData.status === "failed" && "Scraping failed"}
-                  {jobData.status === "processing" && "Scraping in progress"}
-                  {jobData.status === "pending" && "Scraping queued"}
+                  {jobData.status === "completed" && "Price tracking completed successfully"}
+                  {jobData.status === "failed" && "Price tracking failed"}
+                  {jobData.status === "processing" && "Price tracking in progress"}
+                  {jobData.status === "pending" && "Price tracking queued"}
                 </span>
                 {jobData.processingTime && (
                   <span className="text-sm">• {(jobData.processingTime / 1000).toFixed(1)}s</span>
@@ -217,7 +254,7 @@ export function ResultsTable({ jobId }: ResultsTableProps) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {renderTransactionData(jobData.transactions)}
+                  {renderProductData(jobData.transactions)}
                 </TableBody>
               </Table>
             </div>
@@ -225,8 +262,8 @@ export function ResultsTable({ jobId }: ResultsTableProps) {
         ) : (
           <div className="text-center py-12 text-slate-500">
             <Database className="mx-auto h-12 w-12 text-slate-300 mb-4" />
-            <p className="text-lg font-medium text-slate-400 mb-2">No data scraped yet</p>
-            <p className="text-sm">Enter a transaction URL above and start scraping to see results here</p>
+            <p className="text-lg font-medium text-slate-400 mb-2">No product data tracked yet</p>
+            <p className="text-sm">Enter a product URL above and start tracking to see price data here</p>
           </div>
         )}
       </CardContent>

@@ -3,7 +3,19 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Heart, Rocket, History, Layers, Book, Clock } from "lucide-react";
+import { 
+  Heart, 
+  Rocket, 
+  History, 
+  Layers, 
+  Book, 
+  Clock,
+  TrendingUp,
+  Bell,
+  DollarSign,
+  ShoppingCart,
+  Target
+} from "lucide-react";
 
 interface StatusSidebarProps {
   recentJobs: any[];
@@ -40,19 +52,19 @@ export function StatusSidebar({ recentJobs }: StatusSidebarProps) {
   return (
     <div className="space-y-6">
       {/* Status Card */}
-      <Card>
+      <Card className="shadow-lg border-0 bg-white/70 backdrop-blur-sm">
         <CardContent className="p-6">
           <div className="flex items-center space-x-3 mb-4">
             <Heart className="text-blue-600" />
-            <h3 className="text-lg font-semibold text-slate-900">Status</h3>
+            <h3 className="text-lg font-semibold text-slate-900">System Status</h3>
           </div>
 
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-slate-600">System Status</span>
+              <span className="text-sm text-slate-600">Tracker Status</span>
               <Badge variant="secondary" className="bg-green-100 text-green-800">
-                <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-                Online
+                <div className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></div>
+                Active
               </Badge>
             </div>
 
@@ -64,7 +76,7 @@ export function StatusSidebar({ recentJobs }: StatusSidebarProps) {
             </div>
 
             <div className="flex items-center justify-between">
-              <span className="text-sm text-slate-600">Last Scrape</span>
+              <span className="text-sm text-slate-600">Last Check</span>
               <span className="text-sm font-medium text-slate-900">
                 {getLastScrapeTime()}
               </span>
@@ -82,7 +94,7 @@ export function StatusSidebar({ recentJobs }: StatusSidebarProps) {
       </Card>
 
       {/* Quick Actions Card */}
-      <Card>
+      <Card className="shadow-lg border-0 bg-white/70 backdrop-blur-sm">
         <CardContent className="p-6">
           <div className="flex items-center space-x-3 mb-4">
             <Rocket className="text-blue-600" />
@@ -92,29 +104,40 @@ export function StatusSidebar({ recentJobs }: StatusSidebarProps) {
           <div className="space-y-3">
             <Button
               variant="outline"
-              className="w-full justify-start h-auto p-4"
+              className="w-full justify-start h-auto p-4 border-slate-300 hover:bg-slate-50"
             >
-              <History className="h-4 w-4 mr-3 text-slate-500" />
+              <TrendingUp className="h-4 w-4 mr-3 text-slate-500" />
               <div className="text-left">
-                <div className="font-medium text-slate-900">View History</div>
-                <div className="text-sm text-slate-500">Past scraping jobs</div>
+                <div className="font-medium text-slate-900">Price Analytics</div>
+                <div className="text-sm text-slate-500">View price trends</div>
               </div>
             </Button>
 
             <Button
               variant="outline"
-              className="w-full justify-start h-auto p-4"
+              className="w-full justify-start h-auto p-4 border-slate-300 hover:bg-slate-50"
             >
-              <Layers className="h-4 w-4 mr-3 text-slate-500" />
+              <Bell className="h-4 w-4 mr-3 text-slate-500" />
               <div className="text-left">
-                <div className="font-medium text-slate-900">Bulk Scrape</div>
-                <div className="text-sm text-slate-500">Multiple URLs at once</div>
+                <div className="font-medium text-slate-900">Price Alerts</div>
+                <div className="text-sm text-slate-500">Set up notifications</div>
               </div>
             </Button>
 
             <Button
               variant="outline"
-              className="w-full justify-start h-auto p-4"
+              className="w-full justify-start h-auto p-4 border-slate-300 hover:bg-slate-50"
+            >
+              <Target className="h-4 w-4 mr-3 text-slate-500" />
+              <div className="text-left">
+                <div className="font-medium text-slate-900">Watchlist</div>
+                <div className="text-sm text-slate-500">Manage tracked products</div>
+              </div>
+            </Button>
+
+            <Button
+              variant="outline"
+              className="w-full justify-start h-auto p-4 border-slate-300 hover:bg-slate-50"
             >
               <Book className="h-4 w-4 mr-3 text-slate-500" />
               <div className="text-left">
@@ -127,7 +150,7 @@ export function StatusSidebar({ recentJobs }: StatusSidebarProps) {
       </Card>
 
       {/* Recent Activity */}
-      <Card>
+      <Card className="shadow-lg border-0 bg-white/70 backdrop-blur-sm">
         <CardContent className="p-6">
           <div className="flex items-center space-x-3 mb-4">
             <Clock className="text-blue-600" />
@@ -150,10 +173,12 @@ export function StatusSidebar({ recentJobs }: StatusSidebarProps) {
                   }`}
                 ></div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-900 truncate">
-                    {new URL(job.url).hostname} scrape
+                  <p className="text-sm font-medium text-slate-900 truncate flex items-center">
+                    <ShoppingCart className="h-3 w-3 mr-1" />
+                    {new URL(job.url).hostname} product
                   </p>
-                  <p className="text-xs text-slate-500 mt-1">
+                  <p className="text-xs text-slate-500 mt-1 flex items-center">
+                    <Clock className="h-3 w-3 mr-1" />
                     {getLastScrapeTime()} • {job.status === "completed" ? "Success" : job.status}
                   </p>
                 </div>
@@ -162,16 +187,43 @@ export function StatusSidebar({ recentJobs }: StatusSidebarProps) {
             
             {recentJobs.length === 0 && (
               <div className="text-center py-4 text-slate-500">
+                <ShoppingCart className="mx-auto h-8 w-8 text-slate-300 mb-2" />
                 <p className="text-sm">No recent activity</p>
+                <p className="text-xs text-slate-400">Start tracking products to see activity</p>
               </div>
             )}
           </div>
 
           {recentJobs.length > 5 && (
-            <Button variant="ghost" className="w-full mt-4 text-sm text-blue-600 hover:text-blue-700">
+            <Button variant="ghost" className="w-full mt-4 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50">
               View all activity →
             </Button>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Stats Card */}
+      <Card className="shadow-lg border-0 bg-gradient-to-br from-blue-50 to-purple-50">
+        <CardContent className="p-6">
+          <div className="flex items-center space-x-3 mb-4">
+            <DollarSign className="text-blue-600" />
+            <h3 className="text-lg font-semibold text-slate-900">Savings Tracker</h3>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-slate-600">Products Tracked</span>
+              <span className="text-lg font-bold text-blue-600">{recentJobs.length}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-slate-600">Potential Savings</span>
+              <span className="text-lg font-bold text-green-600">$0.00</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-slate-600">Best Deal Found</span>
+              <span className="text-sm font-medium text-purple-600">None yet</span>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>
